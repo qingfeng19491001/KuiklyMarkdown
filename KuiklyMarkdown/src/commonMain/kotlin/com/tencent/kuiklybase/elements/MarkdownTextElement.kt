@@ -68,6 +68,7 @@ fun ViewContainer<*, *>.markdownRichText(
                 Span {
                     text(segment.text)
                     fontSize(segment.fontSize ?: style.fontSize)
+                    style.lineHeight?.let { lineHeight(it) }
 
                     // 加粗
                     if (segment.bold || style.fontWeight == FontWeight.Bold) {
