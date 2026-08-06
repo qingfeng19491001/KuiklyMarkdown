@@ -26,12 +26,14 @@ fun ViewContainer<*, *>.KuiklyStreamingMarkdown(
     // 根据 blockIndex 获取对应的 AST 节点
     val astNode = blockNodes.getOrNull(block.blockIndex) ?: return
 
-    renderMarkdownElement(
-        node = astNode,
-        components = components,
-        content = parseResult.content,
-        config = config,
-        referenceLinkHandler = parseResult.referenceLinkHandler,
-        includeSpacer = true,
-    )
+    KuiklyMarkdownRootView {
+        renderMarkdownElement(
+            node = astNode,
+            components = components,
+            content = parseResult.content,
+            config = config,
+            referenceLinkHandler = parseResult.referenceLinkHandler,
+            includeSpacer = true,
+        )
+    }
 }

@@ -144,6 +144,7 @@ object DefaultComponentsBridge {
             config = model.config,
             components = markdownComponents(), // use default components for recursive rendering
             referenceLinkHandler = model.referenceLinkHandler,
+            extra = model.extra,
         )
     }
 
@@ -151,7 +152,7 @@ object DefaultComponentsBridge {
         container.markdownParagraph(
             content = model.content,
             node = model.node,
-            style = model.typography.paragraph,
+            style = if (model.listDepth > 0) model.typography.list else model.typography.paragraph,
             config = model.config,
             referenceLinkHandler = model.referenceLinkHandler,
         )

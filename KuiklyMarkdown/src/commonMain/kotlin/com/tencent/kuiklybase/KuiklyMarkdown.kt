@@ -32,15 +32,16 @@ fun ViewContainer<*, *>.KuiklyMarkdown(
         lookupLinks = lookupLinks,
     )
 
-    // 2. 遍历 AST 根节点的子节点，逐个渲染
-    parseResult.node.children.forEach { childNode ->
-        renderMarkdownElement(
-            node = childNode,
-            components = components,
-            content = parseResult.content,
-            config = config,
-            referenceLinkHandler = parseResult.referenceLinkHandler,
-            includeSpacer = true,
-        )
+    KuiklyMarkdownRootView {
+        parseResult.node.children.forEach { childNode ->
+            renderMarkdownElement(
+                node = childNode,
+                components = components,
+                content = parseResult.content,
+                config = config,
+                referenceLinkHandler = parseResult.referenceLinkHandler,
+                includeSpacer = true,
+            )
+        }
     }
 }

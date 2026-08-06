@@ -27,6 +27,12 @@ PUB_IS_LOCAL_REPO=""
 # 是否需要 clean
 NEED_CLEAN=""
 
+# 是否只发布 Compose wrapper（基础模块已发布过时使用，避免重复覆盖已发布版本）
+COMPOSE_ONLY=""
+
+# Compose wrapper 版本号，缺省与基础版本号一致（需要单独升 wrapper 版本时使用）
+COMPOSE_VERSION=""
+
 # 是否 debug
 DEBUG=""
 
@@ -46,13 +52,19 @@ KOTLIN_VERSION_LIST=""
 OHOS_KOTLIN_VERSION_LIST=""
 
 # 默认 Kuikly Core 版本（与 buildSrc/KotlinBuildVar.kt 中 KUIKLY_VERSION 保持一致）
-DEFAULT_KUIKLY_CORE_VERSION="2.15.0"
+DEFAULT_KUIKLY_CORE_VERSION="2.24.0"
 
 # publish 任务
 PUBLISH_TASK=publishAllPublicationsToMavenRepository
 
 # 核心渲染库模块目录名
 MODULE_KMP="KuiklyMarkdown"
+
+# Compose wrapper 模块目录名
+MODULE_COMPOSE="KuiklyMarkdownCompose"
+
+# Compose wrapper 只支持这一个 Kotlin 版本（Kuikly Compose 未提供其他版本产物）
+COMPOSE_KOTLIN_VERSION="2.1.21"
 
 # 构建开始时间
 BUILD_START_TIME=0
@@ -127,6 +139,8 @@ function usage() {
   echo "  -l, --local-repo    指定是否发布到本地 repo (true/false)"
   echo "  -m, --maven-url     指定 Maven 仓库地址, 默认读取 gradle.properties 中 MAVEN_REPO_URL"
   echo "  -c, --clean         指定是否需要 clean 后编译 (true/false)"
+  echo "  -co, --compose-only 只发布 Compose wrapper, 跳过基础模块 (true/false)"
+  echo "  -cv, --compose-version  指定 Compose wrapper 版本号, 缺省与基础版本号一致"
   echo "  -d, --debug         是否开启 Gradle debug 模式 (true/false)"
   echo "  -h, --help          查看帮助"
   echo ""
@@ -274,6 +288,35 @@ function publishModule() {
   log_info "${project} 发布成功: ${build_version}"
 }
 
+# Compose wrapper 不带 kotlin 版本后缀发布，但它对基础模块的依赖必须指向带后缀的已发布版本，
+# 所以这里同时传入两个版本号：mavenVersion 决定 POM 里基础模块的版本，
+# COMPOSE_MAVEN_VERSION 决定 wrapper 自身的坐标。
+function publishComposeModule() {
+  local kt_version=$1
+  local base_build_version=$2
+
+  local core_version
+  core_version=$(get_kuikly_core_version "${kt_version}" "false")
+
+  local common_args
+  common_args=$(build_gradle_args)
+
+  log_info "发布 ${MODULE_COMPOSE} (kotlin=${kt_version}, version=${COMPOSE_VERSION:-${BASE_VERSION}}, 依赖 ${MODULE_KMP}:${base_build_version})"
+
+  if ! ${GRADLEW} :${MODULE_COMPOSE}:${PUBLISH_TASK} \
+    -PkotlinVersion="${kt_version}" \
+    -PkuiklyCoreVersion="${core_version}" \
+    -PHARMONY_ENABLED=false \
+    -PmavenVersion="${base_build_version}" \
+    -PCOMPOSE_MAVEN_VERSION="${COMPOSE_VERSION:-${BASE_VERSION}}" \
+    ${common_args}; then
+    log_error "${MODULE_COMPOSE} 构建失败! (kotlin=${kt_version})"
+    return 1
+  fi
+
+  log_info "${MODULE_COMPOSE} 发布成功: ${COMPOSE_VERSION:-${BASE_VERSION}}"
+}
+
 function publishAll() {
   local final_versions=""
   local build_version
@@ -288,9 +331,22 @@ function publishAll() {
       build_version="${BASE_VERSION}-${kt_version}"
     fi
 
-# 发布核心渲染库 (KuiklyMarkdown)
-    if ! publishModule "${MODULE_KMP}" "${PUBLISH_TASK}" "${kt_version}" "${build_version}" "false"; then
-      return 1
+    if [ "${COMPOSE_ONLY}" = "true" ]; then
+      log_warn "compose-only 模式: 跳过基础模块发布"
+    else
+      # 发布核心渲染库 (KuiklyMarkdown)
+      if ! publishModule "${MODULE_KMP}" "${PUBLISH_TASK}" "${kt_version}" "${build_version}" "false"; then
+        return 1
+      fi
+    fi
+
+    # 发布 Compose wrapper (KuiklyMarkdownCompose)
+    if [ "${kt_version}" = "${COMPOSE_KOTLIN_VERSION}" ]; then
+      if ! publishComposeModule "${kt_version}" "${build_version}"; then
+        return 1
+      fi
+    else
+      log_warn "跳过 ${MODULE_COMPOSE} (kotlin=${kt_version}, 仅支持 ${COMPOSE_KOTLIN_VERSION})"
     fi
 
     if [[ -z "${final_versions}" ]]; then
@@ -301,7 +357,7 @@ function publishAll() {
   done
 
   # ====== 鸿蒙平台 (含 ohosArm64 目标) ======
-  if [[ -n "${OHOS_KOTLIN_VERSION_LIST}" ]]; then
+  if [[ -n "${OHOS_KOTLIN_VERSION_LIST}" && "${COMPOSE_ONLY}" != "true" ]]; then
     log_info "========== 开始发布鸿蒙平台产物 =========="
     IFS=',' read -r -a OHOS_VERSIONS <<<"${OHOS_KOTLIN_VERSION_LIST}"
     for kt_version in "${OHOS_VERSIONS[@]}"; do
@@ -378,6 +434,14 @@ while [[ "$#" -gt 0 ]]; do
   -c | --clean)
     shift
     NEED_CLEAN="$1"
+    ;;
+  -co | --compose-only)
+    shift
+    COMPOSE_ONLY="$1"
+    ;;
+  -cv | --compose-version)
+    shift
+    COMPOSE_VERSION="${1}"
     ;;
   -d | --debug)
     shift

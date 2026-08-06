@@ -5,6 +5,8 @@ import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
 import com.tencent.kuiklybase.components.MarkdownComponentModel
 import com.tencent.kuiklybase.components.MarkdownComponents
+import com.tencent.kuiklybase.config.FontStyle
+import com.tencent.kuiklybase.config.FontWeight
 import com.tencent.kuiklybase.config.MarkdownConfig
 import com.tencent.kuiklybase.config.TextStyleConfig
 import com.tencent.kuiklybase.model.ReferenceLinkHandler
@@ -170,7 +172,11 @@ private fun ViewContainer<*, *>.markdownListItem(
                 attr {
                     text(bulletText)
                     fontSize(style.fontSize)
+//                    style.fontFamily?.let { fontFamily(it) }
+                    if (style.fontWeight == FontWeight.Bold) { fontWeightBold() }
+                    if (style.fontStyle == FontStyle.Italic) { fontStyleItalic() }
                     color(style.color ?: config.colors.text)
+                    style.lineHeight?.let { lineHeight(it) }
                 }
             }
         }
@@ -218,6 +224,7 @@ private fun ViewContainer<*, *>.markdownListItem(
                             config = config,
                             referenceLinkHandler = referenceLinkHandler,
                             includeSpacer = false,
+                            extra = listDepthExtra(depth + 1),
                         )
                     }
                 }

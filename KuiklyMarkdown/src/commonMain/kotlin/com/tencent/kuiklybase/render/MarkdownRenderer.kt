@@ -45,6 +45,7 @@ fun ViewContainer<*, *>.renderMarkdownElement(
     config: MarkdownConfig,
     referenceLinkHandler: ReferenceLinkHandler? = null,
     includeSpacer: Boolean = true,
+    extra: Map<String, Any> = emptyMap(),
 ) {
     val model = MarkdownComponentModel(
         content = content,
@@ -52,6 +53,7 @@ fun ViewContainer<*, *>.renderMarkdownElement(
         typography = config.typography,
         config = config,
         referenceLinkHandler = referenceLinkHandler,
+        extra = extra,
     )
 
     // 块级间距
@@ -92,7 +94,15 @@ fun ViewContainer<*, *>.renderMarkdownElement(
     // 未处理的节点：递归处理其子节点
     if (!handled) {
         node.children.forEach { child ->
-            renderMarkdownElement(child, components, content, config, referenceLinkHandler, includeSpacer)
+            renderMarkdownElement(
+                child,
+                components,
+                content,
+                config,
+                referenceLinkHandler,
+                includeSpacer,
+                extra,
+            )
         }
     }
 }

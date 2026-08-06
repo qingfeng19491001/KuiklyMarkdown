@@ -22,6 +22,7 @@ fun ViewContainer<*, *>.markdownBlockQuote(
     config: MarkdownConfig,
     components: MarkdownComponents,
     referenceLinkHandler: ReferenceLinkHandler? = null,
+    extra: Map<String, Any> = emptyMap(),
 ) {
     View {
         attr {
@@ -66,6 +67,7 @@ fun ViewContainer<*, *>.markdownBlockQuote(
                             config = config,
                             components = components,
                             referenceLinkHandler = referenceLinkHandler,
+                            extra = extra,
                         )
                     }
                     MarkdownTokenTypes.EOL -> {
@@ -85,6 +87,7 @@ fun ViewContainer<*, *>.markdownBlockQuote(
                             config = config,
                             referenceLinkHandler = referenceLinkHandler,
                             includeSpacer = false,
+                            extra = extra,
                         )
                     }
                 }

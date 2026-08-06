@@ -26,5 +26,6 @@ rootProject.name = "KuiklyMarkdown"
 include(":androidApp")
 include(":shared")
 include(":KuiklyMarkdown")
+include(":KuiklyMarkdownCompose")
 include(":h5App")
 include(":miniApp")

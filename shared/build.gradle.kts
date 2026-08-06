@@ -3,7 +3,7 @@ import com.tencent.kuikly.gradle.config.KuiklyConfig
 plugins {
     kotlin("multiplatform")
     kotlin("native.cocoapods")
-    kotlin("plugin.serialization") version "2.0.21"
+    kotlin("plugin.serialization") version "2.1.21"
     id("com.android.library")
     id("com.google.devtools.ksp")
     id("maven-publish")
@@ -41,11 +41,15 @@ kotlin {
     iosArm64()
     iosSimulatorArm64()
 
+    macosX64()
+    macosArm64()
+
     cocoapods {
         summary = "Some description for the Shared Module"
         homepage = "Link to the Shared Module homepage"
         version = "1.0"
         ios.deploymentTarget = "14.1"
+        osx.deploymentTarget = "10.13"
         podfile = project.file("../iosApp/Podfile")
         framework {
             baseName = "shared"
@@ -62,9 +66,9 @@ kotlin {
                 implementation("com.tencent.kuikly-open:core:${Version.getKuiklyVersion()}")
                 implementation("com.tencent.kuikly-open:core-annotations:${Version.getKuiklyVersion()}")
                 implementation(project(":KuiklyMarkdown"))
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0-KBA-002")
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.1-KBA-003")
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1-KBA-003")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
             }
         }
         val commonTest by getting {
@@ -87,6 +91,13 @@ kotlin {
             iosArm64Main.dependsOn(this)
             iosSimulatorArm64Main.dependsOn(this)
         }
+        val macosX64Main by getting
+        val macosArm64Main by getting
+        val macosMain by creating {
+            dependsOn(iosMain)
+            macosX64Main.dependsOn(this)
+            macosArm64Main.dependsOn(this)
+        }
         val iosX64Test by getting
         val iosArm64Test by getting
         val iosSimulatorArm64Test by getting
@@ -95,6 +106,13 @@ kotlin {
             iosX64Test.dependsOn(this)
             iosArm64Test.dependsOn(this)
             iosSimulatorArm64Test.dependsOn(this)
+        }
+        val macosX64Test by getting
+        val macosArm64Test by getting
+        val macosTest by creating {
+            dependsOn(iosTest)
+            macosX64Test.dependsOn(this)
+            macosArm64Test.dependsOn(this)
         }
     }
 }
@@ -128,6 +146,8 @@ dependencies {
         add("kspIosArm64", this)
         add("kspIosX64", this)
         add("kspIosSimulatorArm64", this)
+        add("kspMacosArm64", this)
+        add("kspMacosX64", this)
         add("kspJs", this)
     }
 }
