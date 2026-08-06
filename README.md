@@ -25,6 +25,12 @@
 
 ### 1. 添加依赖
 
+> **Maven 源**：Kuikly `2.5.0` 及以上版本需配置腾讯 Maven 仓库：
+>
+> ```kotlin
+> maven { url = uri("https://mirrors.tencent.com/nexus/repository/maven-tencent/") }
+> ```
+
 在你的 KMP 模块的 `build.gradle.kts` 中添加依赖：
 
 **标准平台（Android / iOS ）：**
@@ -35,9 +41,9 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation("com.tencent.kuikly-open:core:${kuiklyVersion}")
-                implementation("com.tencent.kuiklybase:KuiklyMarkdown:1.0.4-2.0.21")
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0-KBA-002")
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1-KBA-003")
+                implementation("com.tencent.kuiklybase:KuiklyMarkdown:1.0.6-2.1.21")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
             }
         }
     }
@@ -52,9 +58,9 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 api("com.tencent.kuikly-open:core:${kuiklyVersion}")
-                api("com.tencent.kuiklybase:KuiklyMarkdown:1.0.4-2.0.21-ohos")
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0-KBA-002")
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1-KBA-003")
+                api("com.tencent.kuiklybase:KuiklyMarkdown:1.0.6-2.0.21-ohos")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
             }
         }
     }
@@ -87,7 +93,34 @@ Scroller {
 }
 ```
 
-### 3. API 参数说明
+### 3. Kuikly Compose 使用
+
+Compose 页面使用独立 wrapper。`MarkdownView` 直接生成 Kuikly Compose 的 `Column`、`Text`、`Image` 等节点，不会桥接到传统 DSL 子树：
+
+```kotlin
+// commonMain dependencies
+implementation("com.tencent.kuiklybase:KuiklyMarkdownCompose:<version>")
+```
+
+```kotlin
+import com.tencent.kuikly.compose.foundation.layout.fillMaxWidth
+import com.tencent.kuikly.compose.foundation.layout.padding
+import com.tencent.kuikly.compose.ui.Modifier
+import com.tencent.kuikly.compose.ui.unit.dp
+import com.tencent.kuiklybase.markdown.compose.MarkdownView
+
+MarkdownView(
+    modifier = Modifier.fillMaxWidth().padding(16.dp),
+    content = "# Hello Compose\n\n支持 **粗体**、列表、链接和图片。",
+    config = MarkdownConfig.Default,
+)
+```
+
+Compose renderer 支持标题、段落、粗体、斜体、删除线、行内代码、代码块、引用、有序/无序及任务列表、链接、图片、分割线和 GFM 表格。外层是否滚动由调用方决定；例如在页面级 `LazyColumn` 的 item 中使用 `MarkdownView`。
+
+> **自定义组件限制**：为保持已有 API 的源码/二进制兼容，Compose 入口仍保留 `components: MarkdownComponents` 参数，但传统 `ViewContainer` renderer 无法安全挂载到 Compose 树，因此该参数在 Compose 入口不执行，始终使用默认 Compose renderer，不会回退到 bridge。需要 `markdownComponents(...)` 自定义 renderer 时，请继续使用传统 `ViewContainer<*, *>.KuiklyMarkdown`。Compose 链接点击会调用 `MarkdownConfig.onLinkClick`；Compose 富文本目前不提供传统 DSL 的精确 `ClickParams` 坐标和长按事件代理。
+
+### 4. API 参数说明
 
 ```kotlin
 fun ViewContainer<*, *>.KuiklyMarkdown(
@@ -198,10 +231,16 @@ MarkdownConfig(
 
 ```kotlin
 MarkdownConfig(
-    // 链接点击处理
-    onLinkClick = { url ->
-        println("点击了链接: $url")
+    // 链接点击处理（支持 ClickParams 坐标；也兼容仅传 url 的写法）
+    onLinkClick = { url, params ->
+        println("点击了链接: $url, x=${params.x}, y=${params.y}")
     },
+    // 链接长按处理
+    onLinkLongPress = { url, params ->
+        println("长按了链接: $url")
+    },
+    // 事件代理 ViewRef：链接富文本会消费点击/长按，可将事件补发到外层 View
+    eventProxyViewRef = proxyViewRef,
     // 图片 URL 变换（可用于添加 CDN 前缀等）
     imageUrlTransformer = { url ->
         "https://cdn.example.com/$url"
