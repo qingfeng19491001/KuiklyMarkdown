@@ -1,5 +1,6 @@
 package com.tencent.kuiklybase.parser
 
+import com.tencent.kuiklybase.math.normalizeMathDelimiters
 import com.tencent.kuiklybase.model.ReferenceLinkHandler
 import com.tencent.kuiklybase.model.ReferenceLinkHandlerImpl
 import com.tencent.kuiklybase.utils.lookupLinkDefinition
@@ -34,20 +35,21 @@ fun parseMarkdown(
     flavour: MarkdownFlavourDescriptor = GFMFlavourDescriptor(),
     lookupLinks: Boolean = true,
 ): MarkdownParseResult {
+    val normalized = normalizeMathDelimiters(content)
     val parser = MarkdownParser(flavour)
-    val rootNode = parser.buildMarkdownTreeFromString(content)
+    val rootNode = parser.buildMarkdownTreeFromString(normalized)
 
     val referenceLinkHandler = ReferenceLinkHandlerImpl()
     if (lookupLinks) {
         val store = mutableMapOf<String, String?>()
-        lookupLinkDefinition(store, rootNode, content)
+        lookupLinkDefinition(store, rootNode, normalized)
         store.forEach { (label, destination) ->
             referenceLinkHandler.store(label, destination)
         }
     }
 
     return MarkdownParseResult(
-        content = content,
+        content = normalized,
         node = rootNode,
         referenceLinkHandler = referenceLinkHandler,
     )

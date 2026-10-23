@@ -12,6 +12,7 @@ import com.tencent.kuiklybase.elements.markdownImage
 import com.tencent.kuiklybase.elements.markdownOrderedList
 import com.tencent.kuiklybase.elements.markdownParagraph
 import com.tencent.kuiklybase.elements.markdownPlainText
+import com.tencent.kuiklybase.elements.markdownBlockMathFromNode
 import com.tencent.kuiklybase.elements.markdownTable
 import com.tencent.kuiklybase.utils.getUnescapedTextInNode
 import org.intellij.markdown.MarkdownTokenTypes
@@ -209,6 +210,15 @@ object DefaultComponentsBridge {
             content = model.content,
             node = model.node,
             style = model.typography.text,
+            config = model.config,
+        )
+    }
+
+    val blockMath: MarkdownComponent = { model, container ->
+        container.markdownBlockMathFromNode(
+            content = model.content,
+            node = model.node,
+            style = model.typography.paragraph,
             config = model.config,
         )
     }

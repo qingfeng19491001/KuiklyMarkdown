@@ -1,10 +1,16 @@
 package com.tencent.kuiklybase.markdown.compose
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.tencent.kuikly.compose.coil3.rememberAsyncImagePainter
+import com.tencent.kuikly.compose.foundation.ExperimentalFoundationApi
 import com.tencent.kuikly.compose.foundation.Image
 import com.tencent.kuikly.compose.foundation.background
+import com.tencent.kuikly.compose.foundation.combinedClickable
 import com.tencent.kuikly.compose.foundation.layout.Box
 import com.tencent.kuikly.compose.foundation.layout.Column
 import com.tencent.kuikly.compose.foundation.layout.Row
@@ -15,6 +21,8 @@ import com.tencent.kuikly.compose.foundation.layout.heightIn
 import com.tencent.kuikly.compose.foundation.layout.padding
 import com.tencent.kuikly.compose.foundation.layout.width
 import com.tencent.kuikly.compose.foundation.shape.RoundedCornerShape
+import com.tencent.kuikly.compose.foundation.text.InlineTextContent
+import com.tencent.kuikly.compose.foundation.text.appendInlineContent
 import com.tencent.kuikly.compose.material3.Text
 import com.tencent.kuikly.compose.ui.Alignment
 import com.tencent.kuikly.compose.ui.Modifier
@@ -24,14 +32,17 @@ import com.tencent.kuikly.compose.ui.layout.ContentScale
 import com.tencent.kuikly.compose.ui.text.AnnotatedString
 import com.tencent.kuikly.compose.ui.text.LinkAnnotation
 import com.tencent.kuikly.compose.ui.text.LinkInteractionListener
+import com.tencent.kuikly.compose.ui.text.Placeholder
 import com.tencent.kuikly.compose.ui.text.SpanStyle
 import com.tencent.kuikly.compose.ui.text.TextLinkStyles
 import com.tencent.kuikly.compose.ui.text.buildAnnotatedString
 import com.tencent.kuikly.compose.ui.text.font.FontFamily
 import com.tencent.kuikly.compose.ui.text.font.FontStyle
 import com.tencent.kuikly.compose.ui.text.font.FontWeight
+import com.tencent.kuikly.compose.ui.text.style.TextAlign
 import com.tencent.kuikly.compose.ui.text.style.TextDecoration
 import com.tencent.kuikly.compose.ui.text.withStyle
+import com.tencent.kuikly.compose.ui.unit.TextUnit
 import com.tencent.kuikly.compose.ui.unit.dp
 import com.tencent.kuikly.compose.ui.unit.sp
 import com.tencent.kuikly.core.base.event.ClickParams
@@ -40,6 +51,11 @@ import com.tencent.kuiklybase.components.MarkdownComponents
 import com.tencent.kuiklybase.components.markdownComponents
 import com.tencent.kuiklybase.config.MarkdownConfig
 import com.tencent.kuiklybase.config.TextStyleConfig
+import com.tencent.kuikly.compose.extension.lineSpacing
+import com.tencent.kuiklybase.math.MATH_SELECTION_FILL
+import com.tencent.kuiklybase.math.MATH_SELECTION_MS
+import com.tencent.kuiklybase.math.inlineMathLineSpacing
+import kotlinx.coroutines.delay
 import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import com.tencent.kuiklybase.config.FontStyle as MarkdownFontStyle
@@ -85,9 +101,11 @@ private fun MarkdownBlock(
         is MarkdownRenderBlock.Image -> MarkdownImage(block)
         MarkdownRenderBlock.Divider -> MarkdownDivider(config)
         is MarkdownRenderBlock.Table -> MarkdownTable(block, config)
+        is MarkdownRenderBlock.Math -> MarkdownMath(block, config)
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MarkdownRichText(
     segments: List<StyledTextSegment>,
@@ -95,19 +113,124 @@ private fun MarkdownRichText(
     config: MarkdownConfig,
 ) {
     val text = remember(segments, style, config) { segments.toAnnotatedString(style, config) }
+    val mathSizes =
+        remember(segments, style.fontSize) {
+            segments.mapNotNull { segment ->
+                segment.inlineMathLatex?.let { mathSizeStateOf(it, style.fontSize, false) }
+            }
+        }
+    val inlineContent =
+        segments
+            .mapNotNull { it.inlineMathLatex }
+            .mapIndexed { index, latex ->
+                val sizeState = mathSizes[index]
+                inlineMathId(index) to
+                    InlineTextContent(
+                        Placeholder(
+                            width = (sizeState.width + INLINE_MATH_HORIZONTAL_MARGIN * 2).sp,
+                            height = sizeState.height.sp,
+                        ),
+                    ) {
+                        MathCopyHost(
+                            latex = latex,
+                            onCopy = config.onMathCopy,
+                            modifier = Modifier.padding(horizontal = INLINE_MATH_HORIZONTAL_MARGIN.dp),
+                        ) {
+                            MarkdownNativeMath(
+                                latex = latex,
+                                display = false,
+                                style = style,
+                                config = config,
+                                sizeState = sizeState,
+                            )
+                        }
+                    }
+            }.toMap()
+    val hasInlineMath = inlineContent.isNotEmpty()
     Text(
         text = text,
+        inlineContent = inlineContent,
         color = Color(style.color ?: config.colors.text),
         fontSize = style.fontSize.sp,
         fontWeight = style.fontWeight.toCompose(),
         fontStyle = style.fontStyle.toCompose(),
         fontFamily = style.fontFamily.toComposeFontFamily(),
-        lineHeight = style.lineHeight?.sp ?: com.tencent.kuikly.compose.ui.unit.TextUnit.Unspecified,
+        lineHeight = style.lineHeight?.takeUnless { hasInlineMath }?.sp ?: TextUnit.Unspecified,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = config.padding.block.dp)
+                .lineSpacing(inlineMathLineSpacing(style).takeIf { hasInlineMath && style.lineHeight != null }),
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MarkdownMath(
+    block: MarkdownRenderBlock.Math,
+    config: MarkdownConfig,
+) {
+    val style = config.typography.paragraph
+    Box(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .padding(vertical = config.padding.block.dp),
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        MathCopyHost(
+            latex = block.latex,
+            onCopy = config.onMathCopy,
+        ) {
+            MarkdownNativeMath(
+                latex = block.latex,
+                display = true,
+                style = style,
+                config = config,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MathCopyHost(
+    latex: String,
+    onCopy: ((String) -> Unit)?,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    var selected by remember(latex) { mutableStateOf(false) }
+    LaunchedEffect(selected, latex) {
+        if (selected) {
+            delay(MATH_SELECTION_MS)
+            selected = false
+        }
+    }
+    Box(
+        modifier =
+            modifier
+                .clip(RoundedCornerShape(2.dp))
+                .background(if (selected) Color(MATH_SELECTION_FILL) else Color.Transparent)
+                .then(
+                    if (onCopy != null) {
+                        Modifier.combinedClickable(
+                            onClick = {
+                                selected = true
+                                onCopy(latex)
+                            },
+                            onLongClick = {
+                                selected = true
+                                onCopy(latex)
+                            },
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
+    ) {
+        content()
+    }
 }
 
 private fun List<StyledTextSegment>.toAnnotatedString(
@@ -115,13 +238,25 @@ private fun List<StyledTextSegment>.toAnnotatedString(
     config: MarkdownConfig,
 ): AnnotatedString =
     buildAnnotatedString {
+        var mathIndex = 0
         forEach { segment ->
-            if (segment.imageUrl != null) return@forEach
+            if (segment.imageUrl != null || segment.mathDisplay) return@forEach
+            val inlineLatex = segment.inlineMathLatex
+            if (inlineLatex != null) {
+                appendInlineContent(inlineMathId(mathIndex++), inlineLatex.ifEmpty { " " })
+                return@forEach
+            }
             val start = length
+            val color =
+                segment.color
+                    ?: if (segment.linkUrl != null) {
+                        config.colors.linkColor
+                    } else {
+                        style.color ?: config.colors.text
+                    }
             withStyle(
                 SpanStyle(
-                    color =
-                        Color(segment.color ?: if (segment.linkUrl != null) config.colors.linkColor else style.color ?: config.colors.text),
+                    color = Color(color),
                     fontSize = (segment.fontSize ?: style.fontSize).sp,
                     fontWeight = if (segment.bold) FontWeight.Bold else null,
                     fontStyle = if (segment.italic) FontStyle.Italic else null,
@@ -161,6 +296,13 @@ private fun List<StyledTextSegment>.toAnnotatedString(
             }
         }
     }
+
+private const val INLINE_MATH_HORIZONTAL_MARGIN = 2f
+
+private val StyledTextSegment.inlineMathLatex: String?
+    get() = mathLatex?.takeIf { !mathDisplay }
+
+private fun inlineMathId(index: Int) = "markdown-math-$index"
 
 private fun emptyClickParams() =
     ClickParams(
@@ -207,7 +349,7 @@ private fun MarkdownCode(
             color = Color(style.color ?: config.colors.codeText),
             fontSize = style.fontSize.sp,
             fontFamily = FontFamily.Monospace,
-            lineHeight = style.lineHeight?.sp ?: com.tencent.kuikly.compose.ui.unit.TextUnit.Unspecified,
+            lineHeight = style.lineHeight?.sp ?: TextUnit.Unspecified,
             modifier = Modifier.fillMaxWidth(),
         )
     }

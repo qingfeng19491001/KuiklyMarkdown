@@ -2,6 +2,7 @@ package com.kuikly.kuiklymarkdown
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
 import android.view.View
@@ -22,6 +23,7 @@ import com.kuikly.kuiklymarkdown.adapter.KRThreadAdapter
 import com.kuikly.kuiklymarkdown.adapter.KRUncaughtExceptionHandlerAdapter
 import com.kuikly.kuiklymarkdown.module.KRBridgeModule
 import com.kuikly.kuiklymarkdown.module.KRShareModule
+import com.tencent.kuiklybase.markdown.KRMarkdownMathView
 import org.json.JSONObject
 
 class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorDelegate {
@@ -31,6 +33,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     private lateinit var errorView: View
 
     private val kuiklyRenderViewDelegator = KuiklyRenderViewBaseDelegator(this)
+    private var lastNotifiedNightMode: Boolean? = null
 
     private val pageName: String
         get() {
@@ -51,6 +54,13 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         loadingView = findViewById(R.id.hr_loading)
         errorView = findViewById(R.id.hr_error)
         kuiklyRenderViewDelegator.onAttach(hrContainerView, "", pageName, createPageData())
+        lastNotifiedNightMode = isSystemNightMode()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        setupImmersiveMode()
+        notifyKuiklyNightMode()
     }
 
     override fun onDestroy() {
@@ -66,6 +76,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     override fun onResume() {
         super.onResume()
         kuiklyRenderViewDelegator.onResume()
+        notifyKuiklyNightMode()
     }
 
     override fun registerExternalModule(kuiklyRenderExport: IKuiklyRenderExport) {
@@ -83,14 +94,32 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
     override fun registerExternalRenderView(kuiklyRenderExport: IKuiklyRenderExport) {
         super.registerExternalRenderView(kuiklyRenderExport)
         with(kuiklyRenderExport) {
-
+            renderViewExport(KRMarkdownMathView.VIEW_NAME, { context ->
+                KRMarkdownMathView(context)
+            })
         }
     }
 
     private fun createPageData(): Map<String, Any> {
         val param = argsToMap()
         param["appId"] = 1
+        param["isNightMode"] = isSystemNightMode()
         return param
+    }
+
+    private fun isSystemNightMode(): Boolean {
+        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        return night == Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun notifyKuiklyNightMode() {
+        val night = isSystemNightMode()
+        if (lastNotifiedNightMode == night) return
+        lastNotifiedNightMode = night
+        kuiklyRenderViewDelegator.sendEvent(
+            EVENT_THEME_DID_CHANGED,
+            mapOf(KEY_IS_NIGHT_MODE to night),
+        )
     }
 
     private fun argsToMap(): MutableMap<String, Any> {
@@ -102,10 +131,12 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         window?.apply {
             addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
             window?.statusBarColor = Color.TRANSPARENT
-            window?.decorView?.systemUiVisibility =
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            val lightStatus = !isSystemNightMode()
+            var flags = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            if (lightStatus) {
+                flags = flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            }
+            decorView.systemUiVisibility = flags
         }
 
     }
@@ -114,6 +145,8 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
 
         private const val KEY_PAGE_NAME = "pageName"
         private const val KEY_PAGE_DATA = "pageData"
+        private const val KEY_IS_NIGHT_MODE = "isNightMode"
+        private const val EVENT_THEME_DID_CHANGED = "themeDidChanged"
 
         init {
             initKuiklyAdapter()

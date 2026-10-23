@@ -11,6 +11,7 @@ import com.tencent.kuikly.core.views.ImageSpan
 import com.tencent.kuikly.core.views.RichText
 import com.tencent.kuikly.core.views.Span
 import com.tencent.kuikly.core.views.Text
+import com.tencent.kuikly.core.views.View
 import com.tencent.kuiklybase.KuiklyMarkdownRootView
 import com.tencent.kuiklybase.annotator.StyledTextSegment
 import com.tencent.kuiklybase.annotator.buildStyledTextSegments
@@ -18,6 +19,7 @@ import com.tencent.kuiklybase.config.FontStyle
 import com.tencent.kuiklybase.config.FontWeight
 import com.tencent.kuiklybase.config.MarkdownConfig
 import com.tencent.kuiklybase.config.TextStyleConfig
+import com.tencent.kuiklybase.math.inlineMathLineSpacing
 import com.tencent.kuiklybase.model.ReferenceLinkHandler
 import org.intellij.markdown.IElementType
 import org.intellij.markdown.ast.ASTNode
@@ -81,8 +83,23 @@ private fun ViewContainer<*, *>.convertFrameToMarkdown(frame: Frame): Frame {
     return frame
 }
 
+private val StyledTextSegment.isDisplayMath: Boolean
+    get() = mathDisplay && mathLatex != null
+
+private val StyledTextSegment.hasInlineContent: Boolean
+    get() = text.isNotEmpty() || imageUrl != null
+
+private val StyledTextSegment.isPlainText: Boolean
+    get() = !bold && !italic && !strikethrough && !isCode &&
+        linkUrl == null && imageUrl == null && color == null && fontSize == null &&
+        mathLatex == null
+
+private val StyledTextSegment.isInlineMath: Boolean
+    get() = mathLatex != null && !mathDisplay
+
 /**
- * 使用 Kuikly RichText 渲染带样式的文本片段列表
+ * 使用 Kuikly RichText 渲染带样式的文本片段列表。
+ * 块级公式从段落中切开独立排版；行内公式以 PlaceholderSpan 参与文本排版，再叠加 Native Math View。
  */
 fun ViewContainer<*, *>.markdownRichText(
     segments: List<StyledTextSegment>,
@@ -91,11 +108,63 @@ fun ViewContainer<*, *>.markdownRichText(
 ) {
     if (segments.isEmpty()) return
 
-    // 如果全部 segment 都是纯文本（无特殊样式），使用简单 Text
-    val allPlain = segments.all {
-        !it.bold && !it.italic && !it.strikethrough && !it.isCode &&
-            it.linkUrl == null && it.imageUrl == null && it.color == null && it.fontSize == null
+    if (segments.any { it.isDisplayMath || it.isInlineMath }) {
+        val pending = mutableListOf<StyledTextSegment>()
+        fun flushInline() {
+            if (pending.isEmpty()) return
+            renderInlineFlow(pending.toList(), config, style)
+            pending.clear()
+        }
+        segments.forEach { segment ->
+            if (segment.isDisplayMath) {
+                flushInline()
+                val latex = segment.mathLatex.orEmpty()
+                markdownBlockMath(
+                    latex = latex,
+                    style = style,
+                    config = config,
+                )
+            } else {
+                pending += segment
+            }
+        }
+        flushInline()
+        return
     }
+
+    markdownInlineRichText(segments, config, style)
+}
+
+private fun ViewContainer<*, *>.renderInlineFlow(
+    segments: List<StyledTextSegment>,
+    config: MarkdownConfig,
+    style: TextStyleConfig,
+) {
+    if (segments.none { it.isInlineMath }) {
+        if (segments.any { it.hasInlineContent }) {
+            markdownInlineRichText(segments, config, style)
+        }
+        return
+    }
+    View {
+        val slots = segments.mapNotNull { segment ->
+            if (segment.isInlineMath) inlineMathSlot(segment.mathLatex.orEmpty(), style) else null
+        }
+        markdownInlineRichText(segments, config, style, slots)
+        slots.forEach { markdownInlineMathOverlay(it, style, config) }
+    }
+}
+
+private fun ViewContainer<*, *>.markdownInlineRichText(
+    segments: List<StyledTextSegment>,
+    config: MarkdownConfig,
+    style: TextStyleConfig,
+    mathSlots: List<InlineMathSlot> = emptyList(),
+) {
+    if (segments.isEmpty()) return
+
+    // 如果全部 segment 都是纯文本（无特殊样式），使用简单 Text
+    val allPlain = segments.all { it.isPlainText }
 
     if (allPlain) {
         val fullText = segments.joinToString("") { it.text }
@@ -121,8 +190,17 @@ fun ViewContainer<*, *>.markdownRichText(
 
     // 使用 RichText 渲染
     RichText {
+        val spanLineHeight = style.lineHeight?.takeIf { mathSlots.isEmpty() }
+        if (mathSlots.isNotEmpty()) {
+            style.lineHeight?.let {
+                attr { lineSpacing(inlineMathLineSpacing(style)) }
+            }
+        }
+        var mathIndex = 0
         segments.forEach { segment ->
-            if (segment.imageUrl != null) {
+            if (segment.isInlineMath) {
+                mathSlots.getOrNull(mathIndex++)?.let { InlineMathPlaceholder(it) }
+            } else if (segment.imageUrl != null) {
                 // 内联图片
                 val transformedUrl = config.imageUrlTransformer?.invoke(segment.imageUrl) ?: segment.imageUrl
                 ImageSpan {
@@ -135,7 +213,7 @@ fun ViewContainer<*, *>.markdownRichText(
                     text(segment.text)
                     fontSize(segment.fontSize ?: style.fontSize)
 //                    style.fontFamily?.let { fontFamily(it) }
-                    style.lineHeight?.let { lineHeight(it) }
+                    spanLineHeight?.let { lineHeight(it) }
 
                     // 加粗
                     if (segment.bold || style.fontWeight == FontWeight.Bold) {
@@ -169,7 +247,7 @@ fun ViewContainer<*, *>.markdownRichText(
                         config.onLinkClick?.let { onClick ->
                             val url = segment.linkUrl
                             click { clickParams ->
-                                val convertedFrame = this@markdownRichText.convertFrameToMarkdown(
+                                val convertedFrame = this@markdownInlineRichText.convertFrameToMarkdown(
                                     Frame(clickParams.x, clickParams.y, 0f, 0f),
                                 )
                                 onClick(url, clickParams.toMarkdownRelativeParams(convertedFrame))
@@ -180,7 +258,7 @@ fun ViewContainer<*, *>.markdownRichText(
                         config.onLinkLongPress?.let { onLongPress ->
                             val url = segment.linkUrl
                             longPress { longPressParams ->
-                                val convertedFrame = this@markdownRichText.convertFrameToMarkdown(
+                                val convertedFrame = this@markdownInlineRichText.convertFrameToMarkdown(
                                     Frame(longPressParams.x, longPressParams.y, 0f, 0f),
                                 )
                                 onLongPress(url, longPressParams.toMarkdownRelativeParams(convertedFrame))
@@ -195,7 +273,7 @@ fun ViewContainer<*, *>.markdownRichText(
                 click { clickParams ->
                     config.eventProxyViewRef?.let {
                         val proxyView = config.eventProxyViewRef.view
-                        val convertedFrame = this@markdownRichText.convertFrame(Frame(clickParams.x, clickParams.y, 0f, 0f), proxyView as? ViewContainer<*, *>)
+                        val convertedFrame = this@markdownInlineRichText.convertFrame(Frame(clickParams.x, clickParams.y, 0f, 0f), proxyView as? ViewContainer<*, *>)
                         proxyView?.getViewEvent()?.onFireEvent(
                             EventName.CLICK.value,
                             clickParams.toMarkdownRelativeEventJSONObject(convertedFrame),
@@ -208,7 +286,7 @@ fun ViewContainer<*, *>.markdownRichText(
                 longPress { longPressParams ->
                     config.eventProxyViewRef?.let {
                         val proxyView = config.eventProxyViewRef.view
-                        val convertedFrame = this@markdownRichText.convertFrame(Frame(longPressParams.x, longPressParams.y, 0f, 0f), proxyView as? ViewContainer<*, *>)
+                        val convertedFrame = this@markdownInlineRichText.convertFrame(Frame(longPressParams.x, longPressParams.y, 0f, 0f), proxyView as? ViewContainer<*, *>)
                         proxyView?.getViewEvent()?.onFireEvent(
                             EventName.LONG_PRESS.value,
                             longPressParams.toMarkdownRelativeEventJSONObject(convertedFrame),

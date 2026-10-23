@@ -23,4 +23,20 @@ data class MarkdownColors(
     val linkColor: Long = 0xFF1A73E8,
     /** 代码文本颜色 */
     val codeText: Long = 0xFF333333,
-)
+) {
+    companion object {
+        val Light = MarkdownColors()
+
+        val Dark = MarkdownColors(
+            text = 0xFFE8EAED,
+            codeBackground = 0xFF1E1E1E,
+            inlineCodeBackground = 0xFF2D2D2D,
+            dividerColor = 0xFF3D3D3D,
+            tableBackground = 0xFF252525,
+            blockQuoteBar = 0xFF8AB4F8,
+            blockQuoteBackground = 0xFF1A1A2E,
+            linkColor = 0xFF8AB4F8,
+            codeText = 0xFFE8EAED,
+        )
+    }
+}

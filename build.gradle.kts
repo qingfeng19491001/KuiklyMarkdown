@@ -10,7 +10,17 @@ plugins {
 }
 
 buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+        maven {
+            url = uri("https://mirrors.tencent.com/nexus/repository/maven-tencent/")
+        }
+    }
     dependencies {
+        // AGP 7.4 自带 D8 无法解析 Kotlin 2.1 metadata（ERROR:D8: com.android.tools.r8.kotlin.H）
+        classpath("com.android.tools:r8:8.7.18")
         classpath(BuildPlugin.kuikly)
     }
 }

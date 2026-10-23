@@ -42,6 +42,10 @@ class MarkdownConfig(
     val codeHighlightEnabled: Boolean = true,
     /** 代码高亮是否使用暗色主题 */
     val codeHighlightDarkTheme: Boolean = false,
+    /** 长按/点击公式时回调 LaTeX 源文本，便于复制 */
+    val onMathCopy: ((latex: String) -> Unit)? = null,
+    /** 点击代码块右上角复制按钮（或长按该按钮）时回调代码原文，便于复制 */
+    val onCodeCopy: ((code: String, language: String?) -> Unit)? = null,
 ) {
 
     constructor(
@@ -64,6 +68,8 @@ class MarkdownConfig(
         eolAsNewLine: Boolean = false,
         codeHighlightEnabled: Boolean = true,
         codeHighlightDarkTheme: Boolean = false,
+        onMathCopy: ((latex: String) -> Unit)? = null,
+        onCodeCopy: ((code: String, language: String?) -> Unit)? = null,
     ) : this(
         colors = colors,
         typography = typography,
@@ -78,6 +84,8 @@ class MarkdownConfig(
         eolAsNewLine = eolAsNewLine,
         codeHighlightEnabled = codeHighlightEnabled,
         codeHighlightDarkTheme = codeHighlightDarkTheme,
+        onMathCopy = onMathCopy,
+        onCodeCopy = onCodeCopy,
     )
 
     companion object {

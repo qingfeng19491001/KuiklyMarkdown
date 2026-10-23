@@ -2,12 +2,12 @@ package com.kuikly.kuiklymarkdown
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.directives.vbind
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.views.*
 import com.tencent.kuikly.core.views.Scroller
 import com.kuikly.kuiklymarkdown.base.BasePager
 import com.tencent.kuiklybase.KuiklyMarkdown
-import com.tencent.kuiklybase.config.MarkdownConfig
 
 @Page("markdown_demo", supportInLocal = true)
 internal class MarkdownDemoPage : BasePager() {
@@ -15,15 +15,17 @@ internal class MarkdownDemoPage : BasePager() {
     override fun body(): ViewBuilder {
         val ctx = this
         return {
-            attr {
-                backgroundColor(Color.WHITE)
-            }
+            vbind({ ctx.isNightMode() }) {
+                View {
+                    attr {
+                        flex(1f)
+                        backgroundColor(if (ctx.isNightMode()) Color(0xFF121212) else Color.WHITE)
+                    }
 
-            // 导航栏
             View {
                 attr {
                     paddingTop(ctx.pagerData.statusBarHeight)
-                    backgroundColor(Color.WHITE)
+                    backgroundColor(if (ctx.isNightMode()) Color(0xFF121212) else Color.WHITE)
                 }
                 View {
                     attr {
@@ -31,7 +33,6 @@ internal class MarkdownDemoPage : BasePager() {
                         flexDirectionRow()
                         alignItemsCenter()
                     }
-                    // 返回按钮
                     View {
                         attr {
                             size(44f, 44f)
@@ -41,7 +42,7 @@ internal class MarkdownDemoPage : BasePager() {
                             attr {
                                 text("‹")
                                 fontSize(28f)
-                                color(Color(0xFF333333))
+                                color(if (ctx.isNightMode()) Color(0xFFE8EAED) else Color(0xFF333333))
                             }
                         }
                         event {
@@ -50,7 +51,6 @@ internal class MarkdownDemoPage : BasePager() {
                             }
                         }
                     }
-                    // 标题
                     Text {
                         attr {
                             flex(1f)
@@ -58,26 +58,23 @@ internal class MarkdownDemoPage : BasePager() {
                             fontSize(17f)
                             fontWeightBold()
                             textAlignCenter()
-                            color(Color(0xFF333333))
+                            color(if (ctx.isNightMode()) Color(0xFFE8EAED) else Color(0xFF333333))
                         }
                     }
-                    // 占位，保持标题居中
                     View {
                         attr {
                             size(44f, 44f)
                         }
                     }
                 }
-                // 分割线
                 View {
                     attr {
                         height(0.5f)
-                        backgroundColor(Color(0xFFE0E0E0))
+                        backgroundColor(if (ctx.isNightMode()) Color(0xFF3D3D3D) else Color(0xFFE0E0E0))
                     }
                 }
             }
 
-            // 内容区域 - 可滚动
             Scroller {
                 attr {
                     flex(1f)
@@ -86,16 +83,17 @@ internal class MarkdownDemoPage : BasePager() {
                     attr {
                         padding(16f)
                     }
-
-                    // 使用 KuiklyMarkdown 渲染示例内容
                     KuiklyMarkdown(
                         content = SAMPLE_MARKDOWN,
-                        config = MarkdownConfig.Default,
+                        config = ctx.markdownConfig(),
                     )
+                }
+            }
                 }
             }
         }
     }
+
 
     companion object {
         /**
@@ -195,8 +193,82 @@ greet("KuiklyMarkdown");
 - [ ] 待完成的任务
 - [x] 另一个已完成的任务
 
+## 12. 数学公式
+
+行内公式 ${'$'}E=mc^2${'$'} 与周围文本混排。点击或长按公式可复制 LaTeX 源。
+
+分式与希腊字母：${'$'}\alpha = \frac{v}{c}${'$'}。
+
+当一段说明文字足够长、在公式出现之前就已经折行时，行内公式应当紧跟在上一行文字之后，例如 ${'$'}a^2+b^2=c^2${'$'}，后面的标点和文字也要继续接在同一行里排下去，而不是整段掉到下一行。
+
+质能方程 ${'$'}E=mc^2${'$'}，其中 ${'$'}c${'$'} 为光速，**加粗**与[链接](https://kuikly.tds.qq.com)也能和公式在同一段落里自然折行。
+
+基线对齐与高公式：xyz ${'$'}x_1+y^2${'$'} xyz，矩阵 ${'$'}\begin{pmatrix} a & b \\ c & d \end{pmatrix}${'$'} 和求和 ${'$'}\sum_{i=1}^{n} \frac{1}{i}${'$'} 不应与上下行文字重叠，段落设置了固定行高也一样。
+
+块级公式独立排版：
+
+${'$'}${'$'}x^2+y^2=z^2${'$'}${'$'}
+
+希腊字母、分式与根号：
+
+${'$'}${'$'}\alpha + \frac{1}{2} = \sqrt{x_i^2}${'$'}${'$'}
+
+求和与积分：
+
+${'$'}${'$'}\sum_{i=1}^{n} \frac{1}{i^2} = \frac{\pi^2}{6}${'$'}${'$'}
+
+${'$'}${'$'}\int_{0}^{1} x^{2}\,dx = \frac{1}{3}${'$'}${'$'}
+
+括号与二项式：
+
+${'$'}${'$'}\left(\frac{a}{b}\right)^{n} = \binom{n}{k}${'$'}${'$'}
+
+分段函数：
+
+${'$'}${'$'}\begin{cases} x & x \ge 0 \\ -x & x < 0 \end{cases}${'$'}${'$'}
+
+矩阵：
+
+${'$'}${'$'}\begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{bmatrix}${'$'}${'$'}
+
+也支持 `\[ ... \]` 块级定界符。
+
+未闭合的 ${'$'}E=mc 会降级为普通文本。
+
+## 13. 多行公式与混排（滚动/刷新稳定性手测）
+
+价格是 ${'$'}5 美元，变量 ${'$'}x${'$'} 是未知数 —— 货币符号不能吞掉正文。
+
+${'$'}${'$'}
+\begin{bmatrix}
+1 & 2 \\
+3 & 4
+\end{bmatrix}
+\cdot
+\begin{pmatrix} a & b \\ c & d \end{pmatrix}
+=
+\begin{bmatrix} a & b \\ c & d \end{bmatrix}
+${'$'}${'$'}
+
+紧邻的代码块里同样有美元符号，长按/点击右上角「复制」可复制代码：
+
+```swift
+let price = 5        // ${'$'}5
+let latex = "x^2"
+print(price)
+```
+
+| 场景 | 期望 |
+|------|------|
+| 多行 $$ 公式 | 独立居中排版 |
+| 代码块中的 $ | 不解析为公式 |
+| 货币 $5 | 保持原文本 |
+
+> 引用里的行内公式 ${'$'}a^2+b^2=c^2${'$'} 同样正常。
+
 ---
 
-*以上为 KuiklyMarkdown 组件的渲染能力演示。*"""
+*以上为 KuiklyMarkdown 组件的渲染能力演示。*
+"""
     }
 }

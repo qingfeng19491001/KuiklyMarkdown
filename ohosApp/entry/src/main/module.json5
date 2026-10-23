@@ -34,6 +34,11 @@
         ]
       }
     ],
+    "requestPermissions": [
+      {
+        "name": "ohos.permission.INTERNET"
+      }
+    ],
     "metadata": [
       {
         "name": "half_leading",

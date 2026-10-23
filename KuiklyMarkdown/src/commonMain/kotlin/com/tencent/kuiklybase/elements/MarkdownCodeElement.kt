@@ -1,6 +1,8 @@
 package com.tencent.kuiklybase.elements
 
+import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewContainer
+import com.tencent.kuikly.core.timer.setTimeout
 import com.tencent.kuikly.core.views.RichText
 import com.tencent.kuikly.core.views.Span
 import com.tencent.kuikly.core.views.Text
@@ -12,6 +14,17 @@ import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.ast.findChildOfType
 import org.intellij.markdown.ast.getTextInNode
+
+/** 复制按钮点击后的高亮反馈时长 */
+private const val CodeCopyFlashMs = 800
+
+/**
+ * 复制按钮底色：由代码文本色派生透明度，自动适配浅色/深色主题
+ */
+private fun codeCopySurface(codeText: Long, pressed: Boolean): Color {
+    val alpha = if (pressed) 0x33L else 0x14L
+    return Color((codeText and 0x00FFFFFF) or (alpha shl 24))
+}
 
 /**
  * 渲染代码围栏 (```code```)
@@ -75,14 +88,53 @@ private fun ViewContainer<*, *>.markdownCodeBlock(
     style: TextStyleConfig,
     config: MarkdownConfig,
 ) {
+    val blockPadding = config.padding.codeBlock
     View {
         attr {
             backgroundColor(config.colors.codeBackground)
             borderRadius(config.dimens.codeBackgroundCornerSize)
             marginTop(config.padding.block)
             marginBottom(config.padding.block)
-            val p = config.padding.codeBlock
-            padding(p, p, p, p)
+            padding(blockPadding, blockPadding, blockPadding, blockPadding)
+        }
+
+        // 复制按钮（右上角悬浮，仅在配置 onCodeCopy 时渲染）
+        config.onCodeCopy?.let { onCopy ->
+            View {
+                val button = this
+                attr {
+                    val inset = (blockPadding - 4f).coerceAtLeast(0f)
+                    absolutePosition(top = inset, right = inset)
+                    padding(4f, 8f, 4f, 8f)
+                    borderRadius(4f)
+                    backgroundColor(codeCopySurface(config.colors.codeText, false))
+                }
+                var flashGen = 0
+                event {
+                    click {
+                        val gen = ++flashGen
+                        button.getViewAttr().backgroundColor(codeCopySurface(config.colors.codeText, true))
+                        setTimeout(CodeCopyFlashMs) {
+                            if (gen == flashGen) {
+                                button.getViewAttr().backgroundColor(codeCopySurface(config.colors.codeText, false))
+                            }
+                        }
+                        onCopy(code, language)
+                    }
+                    longPress { params ->
+                        if (params.isStart) {
+                            onCopy(code, language)
+                        }
+                    }
+                }
+                Text {
+                    attr {
+                        text("复制")
+                        fontSize(style.fontSize * 0.8f)
+                        color(config.colors.codeText)
+                    }
+                }
+            }
         }
 
         // 语言标签（如果有）

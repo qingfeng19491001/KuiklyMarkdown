@@ -26,4 +26,8 @@ data class StyledTextSegment(
     val color: Long? = null,
     /** 覆盖字号（Float），null 表示继承外层样式 */
     val fontSize: Float? = null,
+    /** 公式 LaTeX 源（去 $ 后）；非空表示这是公式片段 */
+    val mathLatex: String? = null,
+    /** true 表示块级公式 `$$...$$`，需从段落中切开独立排版 */
+    val mathDisplay: Boolean = false,
 )

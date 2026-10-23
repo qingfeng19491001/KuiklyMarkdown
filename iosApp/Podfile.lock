@@ -1,17 +1,20 @@
 PODS:
-  - OpenKuiklyIOSRender (2.15.3)
+  - iosMath (0.9.4)
+  - OpenKuiklyIOSRender (2.29.2)
   - SDWebImage (5.21.7):
     - SDWebImage/Core (= 5.21.7)
   - SDWebImage/Core (5.21.7)
   - shared (1.0)
 
 DEPENDENCIES:
-  - OpenKuiklyIOSRender (~> 2.15.0)
+  - iosMath
+  - OpenKuiklyIOSRender (= 2.29.2)
   - SDWebImage
   - shared (from `../shared`)
 
 SPEC REPOS:
   trunk:
+    - iosMath
     - OpenKuiklyIOSRender
     - SDWebImage
 
@@ -20,10 +23,11 @@ EXTERNAL SOURCES:
     :path: "../shared"
 
 SPEC CHECKSUMS:
-  OpenKuiklyIOSRender: 022fa91ccd0bf1e69bbc3b105d5029cbd3861877
+  iosMath: f7a6cbadf9d836d2149c2a84c435b1effc244cba
+  OpenKuiklyIOSRender: 9b80e6ae091950ecff8213b3cfb49d3f6b29d7a4
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
-  shared: 45c4d5a3fe6bf89e105d0ff0f3587f64ad21dd48
+  shared: 3e0cdce1625f6e7081e8fee06cf8932b4ad21e1c
 
-PODFILE CHECKSUM: 1a427349ebbea4c0bec1ff9dadd6aa2ac815a0e1
+PODFILE CHECKSUM: 9482beec478e28a15b1707bbf995ece6485f7e1a
 
 COCOAPODS: 1.16.2

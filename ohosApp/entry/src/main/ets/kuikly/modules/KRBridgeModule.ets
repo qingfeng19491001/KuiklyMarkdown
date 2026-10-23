@@ -1,4 +1,4 @@
-import { common } from '@kit.AbilityKit';
+import { common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { KRAny } from '@kuikly-open/render';
 import { KuiklyRenderBaseModule } from '@kuikly-open/render';
@@ -6,6 +6,8 @@ import { KuiklyRenderCallback } from '@kuikly-open/render';
 import util from '@ohos.util';
 import fs from '@ohos.file.fs';
 import { fileUri } from '@kit.CoreFileKit';
+import pasteboard from '@ohos.pasteboard';
+import { promptAction } from '@kit.ArkUI';
 
 export class KRBridgeModule extends KuiklyRenderBaseModule {
   static readonly MODULE_NAME = "HRBridgeModule";
@@ -13,6 +15,7 @@ export class KRBridgeModule extends KuiklyRenderBaseModule {
   static readonly CLOSE_PAGE = "closePage";
   static readonly OPEN_PAGE = "openPage";
   static readonly COPY_TO_PASTE_BOARD = "copyToPasteboard";
+  static readonly OPEN_URL = "openUrl";
   static readonly TOAST = "toast";
   static readonly LOG = "log";
   static readonly REPORT_DT = "reportDT";
@@ -41,11 +44,15 @@ export class KRBridgeModule extends KuiklyRenderBaseModule {
         break;
       }
       case KRBridgeModule.COPY_TO_PASTE_BOARD: {
-        this.copyToPasteboard();
+        this.copyToPasteboard(params);
+        break;
+      }
+      case KRBridgeModule.OPEN_URL: {
+        this.openUrl(params);
         break;
       }
       case KRBridgeModule.TOAST: {
-        this.toast();
+        this.toast(params);
         break;
       }
       case KRBridgeModule.LOG: {
@@ -91,12 +98,49 @@ export class KRBridgeModule extends KuiklyRenderBaseModule {
   private openPage() {
   }
 
-  // TODO copy to paste board
-  private copyToPasteboard() {
+  private copyToPasteboard(params: KRAny) {
+    if (params == null) {
+      return;
+    }
+    const records = JSON.parse(params as string) as Record<string, string>;
+    const content = records['content'] ?? '';
+    const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, content);
+    pasteboard.getSystemPasteboard().setData(data);
   }
 
-  // TODO open toast
-  private toast() {
+  private openUrl(params: KRAny) {
+    if (params == null) {
+      return;
+    }
+    const records = JSON.parse(params as string) as Record<string, string>;
+    const url = records['url'];
+    if (!url || !this.isSafeBrowsableUrl(url)) {
+      return;
+    }
+    const context = getContext(this) as common.UIAbilityContext;
+    const want: Want = {
+      action: 'ohos.want.action.viewData',
+      uri: url,
+    };
+    context.startAbility(want);
+  }
+
+  private isSafeBrowsableUrl(url: string): boolean {
+    const colon = url.trim().indexOf(':');
+    if (colon <= 0) {
+      return false;
+    }
+    const scheme = url.trim().substring(0, colon).toLowerCase();
+    return scheme === 'http' || scheme === 'https' || scheme === 'mailto';
+  }
+
+  private toast(params: KRAny) {
+    if (params == null) {
+      return;
+    }
+    const records = JSON.parse(params as string) as Record<string, string>;
+    const content = records['content'] ?? '';
+    promptAction.showToast({ message: content, duration: 1500 });
   }
 
   private log(params: KRAny) {

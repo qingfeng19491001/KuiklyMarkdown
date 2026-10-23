@@ -1,0 +1,5 @@
+/build/
+/oh_modules/
+/BuildProfile.ets
+/.hvigor/
+/oh-package-lock.json5

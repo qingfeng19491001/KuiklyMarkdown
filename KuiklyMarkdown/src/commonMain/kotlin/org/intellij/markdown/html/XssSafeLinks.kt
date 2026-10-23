@@ -2,7 +2,10 @@ package org.intellij.markdown.html
 
 import org.intellij.markdown.ast.ASTNode
 
-private val UNSAFE_LINK_REGEX = Regex("^(vbscript|javascript|file|data):", RegexOption.IGNORE_CASE)
+private val UNSAFE_LINK_REGEX = Regex(
+    "^(vbscript|javascript|file|data|intent|content|package|android-app):",
+    RegexOption.IGNORE_CASE,
+)
 private val ALLOWED_DATA_LINK_REGEX = Regex("^data:image/(gif|png|jpeg|webp);", RegexOption.IGNORE_CASE)
 
 fun makeXssSafeDestination(s: CharSequence): CharSequence {
@@ -12,6 +15,28 @@ fun makeXssSafeDestination(s: CharSequence): CharSequence {
         else
             true
     } ?: "#"
+}
+
+/**
+ * Demo / 宿主打开 markdown 链接时只允许 http(s) 与 mailto，避免 intent/file/js 等 scheme。
+ */
+fun isSafeBrowsableUrl(url: String): Boolean {
+    val trimmed = url.trim()
+    val schemeEnd = trimmed.indexOf(':')
+    if (schemeEnd <= 0) return false
+    val scheme = trimmed.substring(0, schemeEnd).lowercase()
+    return scheme == "http" || scheme == "https" || scheme == "mailto"
+}
+
+fun sanitizeMarkdownLinkUrl(url: String?): String? {
+    if (url.isNullOrBlank()) return url
+    val trimmed = url.trim()
+    if (UNSAFE_LINK_REGEX.containsMatchIn(trimmed) &&
+        !ALLOWED_DATA_LINK_REGEX.containsMatchIn(trimmed)
+    ) {
+        return null
+    }
+    return trimmed
 }
 
 fun LinkGeneratingProvider.makeXssSafe(useSafeLinks: Boolean = true): LinkGeneratingProvider {

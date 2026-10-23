@@ -1,6 +1,8 @@
 package com.tencent.kuiklybase.annotator
 
 import com.tencent.kuiklybase.config.MarkdownConfig
+import com.tencent.kuiklybase.math.extractMathLatex
+import com.tencent.kuiklybase.math.visibleMathText
 import com.tencent.kuiklybase.model.ReferenceLinkHandler
 import com.tencent.kuiklybase.utils.findChildOfTypeRecursive
 import com.tencent.kuiklybase.utils.getUnescapedTextInNode
@@ -13,6 +15,7 @@ import org.intellij.markdown.ast.findChildOfType
 import org.intellij.markdown.ast.getTextInNode
 import org.intellij.markdown.flavours.gfm.GFMElementTypes
 import org.intellij.markdown.flavours.gfm.GFMTokenTypes
+import org.intellij.markdown.html.sanitizeMarkdownLinkUrl
 
 /**
  * 样式上下文栈，记录当前累积的样式状态。
@@ -188,6 +191,14 @@ private fun buildSegmentsFromChildren(
                     appendMarkdownReference(segments, content, child, context, config, referenceLinkHandler)
                 }
 
+                GFMElementTypes.INLINE_MATH -> {
+                    addMathSegment(segments, content, child, display = false, context = context)
+                }
+
+                GFMElementTypes.BLOCK_MATH -> {
+                    addMathSegment(segments, content, child, display = true, context = context)
+                }
+
                 // === Token Types ===
                 MarkdownTokenTypes.TEXT -> {
                     addTextSegment(segments, child.getUnescapedTextInNode(content), context)
@@ -201,7 +212,8 @@ private fun buildSegmentsFromChildren(
                     }
                 }
 
-                GFMTokenTypes.DOLLAR -> addTextSegment(segments, "$", context)
+                // 未配对的 `$` / `$$` 原样保留，避免降级时丢字符
+                GFMTokenTypes.DOLLAR -> addTextSegment(segments, child.getTextInNode(content).toString(), context)
 
                 MarkdownTokenTypes.SINGLE_QUOTE -> addTextSegment(segments, "'", context)
                 MarkdownTokenTypes.DOUBLE_QUOTE -> addTextSegment(segments, "\"", context)
@@ -257,9 +269,32 @@ private fun buildSegmentsFromChildren(
     }
 }
 
-/**
- * 添加一个文本片段到 segments 列表
- */
+private fun addMathSegment(
+    segments: MutableList<StyledTextSegment>,
+    content: String,
+    node: ASTNode,
+    display: Boolean,
+    context: StyleContext,
+) {
+    val latex = extractMathLatex(content, node)
+    val visible = visibleMathText(latex, display)
+    if (visible.isEmpty() && latex.isEmpty()) return
+    segments.add(
+        StyledTextSegment(
+            text = visible.ifEmpty { latex },
+            bold = context.bold,
+            italic = context.italic,
+            strikethrough = context.strikethrough,
+            isCode = context.isCode,
+            linkUrl = context.linkUrl,
+            color = context.color,
+            fontSize = context.fontSize,
+            mathLatex = latex,
+            mathDisplay = display,
+        )
+    )
+}
+
 private fun addTextSegment(
     segments: MutableList<StyledTextSegment>,
     text: String,
@@ -298,7 +333,7 @@ private fun appendAutoLink(
 
     referenceLinkHandler?.store(destination, destination)
     val linkContext = context.copy(
-        linkUrl = destination,
+        linkUrl = sanitizeMarkdownLinkUrl(destination),
         color = config.colors.linkColor,
     )
     addTextSegment(segments, destination, linkContext)
@@ -328,7 +363,7 @@ private fun appendMarkdownLink(
     if (annotation != null) {
         if (text != null) referenceLinkHandler?.store(text, annotation)
         val linkContext = context.copy(
-            linkUrl = annotation,
+            linkUrl = sanitizeMarkdownLinkUrl(annotation),
             color = config.colors.linkColor,
         )
         buildSegmentsFromChildren(
@@ -368,7 +403,7 @@ private fun appendMarkdownReference(
 
     if (url != null) {
         val linkContext = context.copy(
-            linkUrl = url,
+            linkUrl = sanitizeMarkdownLinkUrl(url),
             color = config.colors.linkColor,
         )
         buildSegmentsFromChildren(

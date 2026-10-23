@@ -18,6 +18,7 @@
 		FF6B714529A2A174009349F1 /* HRBridgeModule.m in Sources */ = {isa = PBXBuildFile; fileRef = FF6B714129A2A173009349F1 /* HRBridgeModule.m */; };
 		FF6B714729A2A315009349F1 /* KuiklyRenderViewPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6B714629A2A315009349F1 /* KuiklyRenderViewPage.swift */; };
 		FF6B715029A2A6FF009349F1 /* KuiklyRenderComponentExpandHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = FF6B714F29A2A6FF009349F1 /* KuiklyRenderComponentExpandHandler.m */; };
+		A8E11A0126F00001000MATH01 /* KRMarkdownMathView.m in Sources */ = {isa = PBXBuildFile; fileRef = A8E11A0226F00001000MATH01 /* KRMarkdownMathView.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +43,8 @@
 		FF6B714C29A2A45D009349F1 /* iosApp-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "iosApp-Bridging-Header.h"; sourceTree = "<group>"; };
 		FF6B714E29A2A6FF009349F1 /* KuiklyRenderComponentExpandHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KuiklyRenderComponentExpandHandler.h; sourceTree = "<group>"; };
 		FF6B714F29A2A6FF009349F1 /* KuiklyRenderComponentExpandHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KuiklyRenderComponentExpandHandler.m; sourceTree = "<group>"; };
+		A8E11A0226F00001000MATH01 /* KRMarkdownMathView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = KRMarkdownMathView.m; path = ../KuiklyMarkdown/ios/KRMarkdownMathView.m; sourceTree = SOURCE_ROOT; };
+		A8E11A0326F00001000MATH01 /* KRMarkdownMathView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = KRMarkdownMathView.h; path = ../KuiklyMarkdown/ios/KRMarkdownMathView.h; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -135,12 +138,22 @@
 		FF6B713E29A2A10E009349F1 /* KuiklyExpand */ = {
 			isa = PBXGroup;
 			children = (
+				A8E11A0426F00001000MATH01 /* NativeMath */,
 				FF6B714D29A2A6BA009349F1 /* Handler */,
 				FF6B714329A2A174009349F1 /* KuiklyRenderViewController.h */,
 				FF6B713F29A2A173009349F1 /* KuiklyRenderViewController.m */,
 				FF6B714029A2A173009349F1 /* Modules */,
 			);
 			path = KuiklyExpand;
+			sourceTree = "<group>";
+		};
+		A8E11A0426F00001000MATH01 /* NativeMath */ = {
+			isa = PBXGroup;
+			children = (
+				A8E11A0226F00001000MATH01 /* KRMarkdownMathView.m */,
+				A8E11A0326F00001000MATH01 /* KRMarkdownMathView.h */,
+			);
+			name = NativeMath;
 			sourceTree = "<group>";
 		};
 		FF6B714029A2A173009349F1 /* Modules */ = {
@@ -303,6 +316,7 @@
 				FF6B714729A2A315009349F1 /* KuiklyRenderViewPage.swift in Sources */,
 				7555FF83242A565900829871 /* ContentView.swift in Sources */,
 				FF6B715029A2A6FF009349F1 /* KuiklyRenderComponentExpandHandler.m in Sources */,
+				A8E11A0126F00001000MATH01 /* KRMarkdownMathView.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

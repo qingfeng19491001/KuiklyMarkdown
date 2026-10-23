@@ -1,8 +1,10 @@
 import AbilityConstant from '@ohos.app.ability.AbilityConstant';
+import ConfigurationConstant from '@ohos.app.ability.ConfigurationConstant';
 import hilog from '@ohos.hilog';
 import UIAbility from '@ohos.app.ability.UIAbility';
 import Want from '@ohos.app.ability.Want';
 import window from '@ohos.window';
+import { Configuration } from '@ohos.app.ability.Configuration';
 import { KuiklyRenderAdapterManager } from '@kuikly-open/render';
 import { LogAdapter } from '../kuikly/adapter/LogAdapter';
 import { RouterAdapter } from '../kuikly/adapter/RouterAdapter';
@@ -10,6 +12,11 @@ import { RouterAdapter } from '../kuikly/adapter/RouterAdapter';
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onCreate');
+    this.syncNightMode();
+  }
+
+  onConfigurationUpdate(newConfig: Configuration): void {
+    this.syncNightMode(newConfig);
   }
 
   onDestroy(): void {
@@ -46,5 +53,10 @@ export default class EntryAbility extends UIAbility {
   onBackground(): void {
     // Ability has back to background
     hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onBackground');
+  }
+
+  private syncNightMode(config?: Configuration): void {
+    const colorMode = (config ?? this.context.config).colorMode;
+    AppStorage.setOrCreate('isNightMode', colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
   }
 }

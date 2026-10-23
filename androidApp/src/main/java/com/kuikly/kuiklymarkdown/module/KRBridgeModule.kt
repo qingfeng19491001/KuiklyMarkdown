@@ -3,12 +3,17 @@ package com.kuikly.kuiklymarkdown.module
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import com.tencent.kuikly.core.render.android.export.KuiklyRenderBaseModule
 import com.tencent.kuikly.core.render.android.export.KuiklyRenderCallback
 import com.kuikly.kuiklymarkdown.KRApplication
 import com.kuikly.kuiklymarkdown.KuiklyRenderActivity
+import org.intellij.markdown.html.isSafeBrowsableUrl
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -36,6 +41,10 @@ class KRBridgeModule : KuiklyRenderBaseModule() {
 
             "copyToPasteboard" -> {
                 copyToPasteboard(params)
+            }
+
+            "openUrl" -> {
+                openUrl(params)
             }
 
             "toast" -> {
@@ -110,10 +119,28 @@ class KRBridgeModule : KuiklyRenderBaseModule() {
         if (params == null) {
             return
         }
+        val content = JSONObject(params).optString("content")
+        val appContext = context?.applicationContext ?: KRApplication.application
+        Handler(Looper.getMainLooper()).post {
+            val clipboard = appContext.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                ?: return@post
+            clipboard.setPrimaryClip(ClipData.newPlainText("KuiklyMarkdown", content))
+        }
+    }
 
-        val paramJSON = JSONObject(params)
-        (context?.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)?.also {
-            it.setPrimaryClip(ClipData.newPlainText(MODULE_NAME, paramJSON.optString("content")))
+    private fun openUrl(params: String?) {
+        if (params == null) return
+        val url = JSONObject(params).optString("url")
+        if (url.isBlank() || !isSafeBrowsableUrl(url)) return
+        val appContext = context?.applicationContext ?: KRApplication.application
+        Handler(Looper.getMainLooper()).post {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url.trim()))
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                appContext.startActivity(intent)
+            } catch (error: Exception) {
+                Log.w(MODULE_NAME, "openUrl failed: $url", error)
+            }
         }
     }
 
@@ -121,9 +148,6 @@ class KRBridgeModule : KuiklyRenderBaseModule() {
         if (params == null) {
             return
         }
-        val ctx = context ?: return
-        val paramJSON = JSONObject(params)
-        val url = paramJSON.optString("url")
     }
 
     private fun closePage(params: String?) {

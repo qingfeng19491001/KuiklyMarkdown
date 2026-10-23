@@ -1,6 +1,7 @@
 package com.tencent.kuiklybase.markdown.compose
 
 import com.tencent.kuiklybase.config.MarkdownConfig
+import com.tencent.kuiklybase.math.visibleMathText
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -124,5 +125,86 @@ class MarkdownRenderModelTest {
         assertEquals("(5) ", ordered.items.single().marker)
         val image = blocks.filterIsInstance<MarkdownRenderBlock.Image>().single()
         assertEquals("proxy:asset.png", image.url)
+    }
+
+    @Test
+    fun rendersInlineAndDisplayMath() {
+        val blocks =
+            buildMarkdownRenderModel(
+                content = "Energy is \$E=mc^2\$ and\n\n\$\$x^2+y^2=z^2\$\$",
+                config = MarkdownConfig.Default,
+                flavour = GFMFlavourDescriptor(),
+                lookupLinks = true,
+            )
+
+        val inline = blocks.filterIsInstance<MarkdownRenderBlock.RichText>()
+            .flatMap { it.segments }
+            .first { it.mathLatex != null }
+        assertEquals("E=mc^2", inline.mathLatex)
+        assertEquals("E=mc²", inline.text)
+        assertTrue(!inline.mathDisplay)
+
+        val display = assertNotNull(blocks.filterIsInstance<MarkdownRenderBlock.Math>().firstOrNull())
+        assertEquals("x^2+y^2=z^2", display.latex)
+        assertEquals("x²+y²=z²", visibleMathText(display.latex, display = true))
+    }
+
+    @Test
+    fun layoutsGreekAndFractionInInlineMath() {
+        val blocks =
+            buildMarkdownRenderModel(
+                content = "See \$\\alpha = \\frac{1}{2}\$",
+                config = MarkdownConfig.Default,
+                flavour = GFMFlavourDescriptor(),
+                lookupLinks = true,
+            )
+        val inline = blocks.filterIsInstance<MarkdownRenderBlock.RichText>()
+            .flatMap { it.segments }
+            .first { it.mathLatex != null }
+        assertEquals("\\alpha = \\frac{1}{2}", inline.mathLatex)
+        assertEquals("α=(1/2)", inline.text)
+    }
+
+    @Test
+    fun unclosedMathStaysTextAndDoesNotCreateMathBlock() {
+        val blocks =
+            buildMarkdownRenderModel(
+                content = "open \$E=mc",
+                config = MarkdownConfig.Default,
+                flavour = GFMFlavourDescriptor(),
+                lookupLinks = true,
+            )
+        assertTrue(blocks.filterIsInstance<MarkdownRenderBlock.Math>().isEmpty())
+        val text = blocks.filterIsInstance<MarkdownRenderBlock.RichText>()
+            .flatMap { it.segments }
+            .joinToString("") { it.text }
+        assertTrue(text.contains("\$E=mc"))
+        assertTrue(blocks.filterIsInstance<MarkdownRenderBlock.RichText>().none { it.segments.any { seg -> seg.mathLatex != null } })
+    }
+
+    @Test
+    fun mixedCodeFenceAndMath() {
+        val markdown =
+            """
+            ```kotlin
+            val answer = 42
+            ```
+
+            Use ${'$'}E=mc^2${'$'} after the fence.
+            """.trimIndent()
+        val blocks =
+            buildMarkdownRenderModel(
+                content = markdown,
+                config = MarkdownConfig.Default,
+                flavour = GFMFlavourDescriptor(),
+                lookupLinks = true,
+            )
+        val code = assertNotNull(blocks.filterIsInstance<MarkdownRenderBlock.Code>().firstOrNull())
+        assertTrue(code.code.contains("val answer = 42"))
+        assertTrue(
+            blocks.filterIsInstance<MarkdownRenderBlock.RichText>()
+                .flatMap { it.segments }
+                .any { it.mathLatex == "E=mc^2" },
+        )
     }
 }

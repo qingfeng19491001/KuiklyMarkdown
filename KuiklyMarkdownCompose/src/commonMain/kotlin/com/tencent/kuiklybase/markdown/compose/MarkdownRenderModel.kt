@@ -4,6 +4,8 @@ import com.tencent.kuiklybase.annotator.StyledTextSegment
 import com.tencent.kuiklybase.annotator.buildStyledTextSegments
 import com.tencent.kuiklybase.config.MarkdownConfig
 import com.tencent.kuiklybase.config.TextStyleConfig
+import com.tencent.kuiklybase.math.extractMathLatex
+import com.tencent.kuiklybase.math.visibleMathText
 import com.tencent.kuiklybase.parser.MarkdownParseResult
 import com.tencent.kuiklybase.parser.parseMarkdown
 import org.intellij.markdown.MarkdownElementTypes
@@ -45,6 +47,10 @@ internal sealed interface MarkdownRenderBlock {
     data class Table(
         val header: List<List<StyledTextSegment>>,
         val rows: List<List<List<StyledTextSegment>>>,
+    ) : MarkdownRenderBlock
+
+    data class Math(
+        val latex: String,
     ) : MarkdownRenderBlock
 }
 
@@ -93,6 +99,8 @@ private fun ASTNode.toRenderBlocks(
         MarkdownElementTypes.IMAGE -> imageBlock(parsed.content, config)?.let(::listOf) ?: emptyList()
         MarkdownTokenTypes.HORIZONTAL_RULE -> listOf(MarkdownRenderBlock.Divider)
         GFMElementTypes.TABLE -> tableBlock(parsed, config)?.let(::listOf) ?: emptyList()
+        GFMElementTypes.BLOCK_MATH -> listOf(mathBlock(parsed.content))
+        GFMElementTypes.INLINE_MATH -> listOf(inlineMathAsRichText(parsed.content, config.typography.paragraph))
         MarkdownTokenTypes.TEXT -> richTextBlocks(parsed, config, config.typography.text)
         else -> children.flatMap { it.toRenderBlocks(parsed, config, depth) }
     }
@@ -125,12 +133,18 @@ private fun ASTNode.richTextBlocks(
 
     segments.forEach { segment ->
         val imageUrl = segment.imageUrl
-        if (imageUrl == null) {
-            pendingText += segment
-        } else {
-            flushText()
-            val transformed = config.imageUrlTransformer?.invoke(imageUrl) ?: imageUrl
-            blocks += MarkdownRenderBlock.Image(transformed, description = "Markdown image")
+        when {
+            imageUrl != null -> {
+                flushText()
+                val transformed = config.imageUrlTransformer?.invoke(imageUrl) ?: imageUrl
+                blocks += MarkdownRenderBlock.Image(transformed, description = "Markdown image")
+            }
+            segment.mathDisplay && segment.mathLatex != null -> {
+                flushText()
+                val latex = segment.mathLatex ?: return@forEach
+                blocks += MarkdownRenderBlock.Math(latex = latex)
+            }
+            else -> pendingText += segment
         }
     }
     flushText()
@@ -253,6 +267,28 @@ private fun ASTNode.tableBlock(
     if (header.isEmpty()) return null
     val rows = children.filter { it.type == GFMElementTypes.ROW }.map { it.cells() }
     return MarkdownRenderBlock.Table(header, rows)
+}
+
+private fun ASTNode.mathBlock(content: String): MarkdownRenderBlock.Math {
+    return MarkdownRenderBlock.Math(latex = extractMathLatex(content, this))
+}
+
+private fun ASTNode.inlineMathAsRichText(
+    content: String,
+    style: TextStyleConfig,
+): MarkdownRenderBlock.RichText {
+    val latex = extractMathLatex(content, this)
+    val visible = visibleMathText(latex, display = false)
+    return MarkdownRenderBlock.RichText(
+        segments = listOf(
+            StyledTextSegment(
+                text = visible.ifEmpty { latex },
+                mathLatex = latex,
+                mathDisplay = false,
+            ),
+        ),
+        style = style,
+    )
 }
 
 private fun ASTNode.findDescendant(target: org.intellij.markdown.IElementType): ASTNode? {

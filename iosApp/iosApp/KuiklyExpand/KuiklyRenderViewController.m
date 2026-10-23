@@ -12,6 +12,7 @@
 
 @implementation KuiklyRenderViewController {
     NSDictionary *_pageData;
+    NSNumber *_lastNotifiedNightMode;
 }
 
 - (instancetype)initWithPageName:(NSString *)pageName pageData:(NSDictionary *)pageData {
@@ -29,6 +30,10 @@
     self.fd_prefersNavigationBarHidden = YES;
     self.view.backgroundColor = [UIColor whiteColor];
     [_delegator viewDidLoadWithView:self.view];
+    if (@available(iOS 13.0, *)) {
+        [self p_applyNightModeChrome];
+        _lastNotifiedNightMode = @([self p_isNightMode]);
+    }
     [self.navigationController setNavigationBarHidden:YES animated:NO];
 
 }
@@ -49,6 +54,7 @@
     [super viewDidAppear:animated];
     [_delegator viewDidAppear];
     [self.navigationController setNavigationBarHidden:YES animated:NO];
+    [self p_notifyKuiklyNightMode];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -61,12 +67,44 @@
     [_delegator viewDidDisappear];
 }
 
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+    [super traitCollectionDidChange:previousTraitCollection];
+    if (@available(iOS 13.0, *)) {
+        if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) {
+            return;
+        }
+        [self p_applyNightModeChrome];
+        [self p_notifyKuiklyNightMode];
+    }
+}
+
 #pragma mark - private
 
 - (NSDictionary *)p_mergeExtParamsWithOriditalParam:(NSDictionary *)pageParam {
     NSMutableDictionary *mParam = [(pageParam ?: @{}) mutableCopy];
-
+    mParam[@"isNightMode"] = @([self p_isNightMode]);
     return mParam;
+}
+
+- (BOOL)p_isNightMode {
+    if (@available(iOS 13.0, *)) {
+        return self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark;
+    }
+    return NO;
+}
+
+- (void)p_applyNightModeChrome {
+    BOOL night = [self p_isNightMode];
+    self.view.backgroundColor = night ? [UIColor blackColor] : [UIColor whiteColor];
+}
+
+- (void)p_notifyKuiklyNightMode {
+    BOOL night = [self p_isNightMode];
+    if (_lastNotifiedNightMode != nil && _lastNotifiedNightMode.boolValue == night) {
+        return;
+    }
+    _lastNotifiedNightMode = @(night);
+    [_delegator sendWithEvent:@"themeDidChanged" data:@{ @"isNightMode": @(night) }];
 }
 
 #pragma mark - KuiklyRenderViewControllerDelegatorDelegate

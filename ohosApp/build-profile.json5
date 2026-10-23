@@ -39,6 +39,18 @@
   },
   "modules": [
     {
+      "name": "kuiklymarkdown",
+      "srcPath": "../KuiklyMarkdown/ohos",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
       "name": "entry",
       "srcPath": "./entry",
       "targets": [

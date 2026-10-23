@@ -1,0 +1,11 @@
+{
+  "name": "@kuiklybase/kuikly-markdown",
+  "version": "1.0.6",
+  "description": "KuiklyMarkdown HarmonyOS native Canvas math view",
+  "main": "Index.ets",
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@kuikly-open/render": "2.29.2"
+  }
+}

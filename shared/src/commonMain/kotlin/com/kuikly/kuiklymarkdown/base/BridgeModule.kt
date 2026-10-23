@@ -30,6 +30,13 @@ internal class BridgeModule : Module() {
         callNativeMethod("copyToPasteboard", methodArgs, null)
     }
 
+    fun openUrl(url: String) {
+        if (!org.intellij.markdown.html.isSafeBrowsableUrl(url)) return
+        val methodArgs = JSONObject()
+        methodArgs.put("url", url)
+        callNativeMethod("openUrl", methodArgs, null)
+    }
+
     fun showAlert(
         title: String?,
         message: String?,

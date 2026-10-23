@@ -2,59 +2,51 @@ package com.kuikly.kuiklymarkdown
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.directives.vbind
 import com.tencent.kuikly.core.directives.vfor
+import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.reactive.handler.*
 import com.tencent.kuikly.core.views.*
 import com.kuikly.kuiklymarkdown.base.BasePager
 import com.kuikly.kuiklymarkdown.base.setTimeout
 import com.tencent.kuiklybase.KuiklyStreamingMarkdown
-import com.tencent.kuiklybase.config.MarkdownConfig
 import com.tencent.kuiklybase.streaming.MarkdownBlock
 import com.tencent.kuiklybase.streaming.MarkdownStreamingState
 
 @Page("streaming_markdown_demo", supportInLocal = true)
 internal class StreamingMarkdownDemoPage : BasePager() {
 
-    /** 流式状态管理器 */
     private val streamingState = MarkdownStreamingState()
-
-    /** 块级列表（驱动 vfor 渲染） */
     private var blockList by observableList<MarkdownBlock>()
-
-    /** 已输出的字符位置 */
     private var charIndex = 0
-
-    /** 当前累积的完整文本 */
     private var pendingText = ""
-
-    /** 是否正在流式输出 */
     private var isStreaming by observable(false)
 
-    /** 每次 tick 输出的字符数（模拟 token 粒度） */
-    private val charsPerTick = 3
+    /** 流式输出时是否自动贴底；用户上滑离开底部后暂停 */
+    private var autoFollow by observable(true)
 
-    /** tick 间隔（毫秒） */
-    private val tickInterval = 30
-
-    /** flush 间隔（毫秒） */
-    private val flushInterval = 100
-
-    /** flush 计数器 */
+    private var scrollerRef: ViewRef<ScrollerView<*, *>>? = null
+    private var contentHeight = 0f
+    private var viewportHeight = 0f
+    private var offsetY = 0f
     private var tickCount = 0
 
     override fun body(): ViewBuilder {
         val ctx = this
         return {
-            attr {
-                backgroundColor(Color.WHITE)
-            }
+            vbind({ ctx.isNightMode() }) {
+                View {
+                    attr {
+                        flex(1f)
+                        backgroundColor(if (ctx.isNightMode()) Color(0xFF121212) else Color.WHITE)
+                    }
 
             // 导航栏
             View {
                 attr {
                     paddingTop(ctx.pagerData.statusBarHeight)
-                    backgroundColor(Color.WHITE)
+                    backgroundColor(if (ctx.isNightMode()) Color(0xFF121212) else Color.WHITE)
                 }
                 View {
                     attr {
@@ -72,7 +64,7 @@ internal class StreamingMarkdownDemoPage : BasePager() {
                             attr {
                                 text("‹")
                                 fontSize(28f)
-                                color(Color(0xFF333333))
+                                color(if (ctx.isNightMode()) Color(0xFFE8EAED) else Color(0xFF333333))
                             }
                         }
                         event {
@@ -89,7 +81,7 @@ internal class StreamingMarkdownDemoPage : BasePager() {
                             fontSize(17f)
                             fontWeightBold()
                             textAlignCenter()
-                            color(Color(0xFF333333))
+                            color(if (ctx.isNightMode()) Color(0xFFE8EAED) else Color(0xFF333333))
                         }
                     }
                     // 开始/重置按钮
@@ -123,83 +115,143 @@ internal class StreamingMarkdownDemoPage : BasePager() {
                 View {
                     attr {
                         height(0.5f)
-                        backgroundColor(Color(0xFFE0E0E0))
+                        backgroundColor(if (ctx.isNightMode()) Color(0xFF3D3D3D) else Color(0xFFE0E0E0))
                     }
                 }
             }
 
-            // 内容区域 - 可滚动
-            Scroller {
+            // 内容区域 - 可滚动，流式输出时默认跟随底部
+            View {
                 attr {
                     flex(1f)
+                }
+            Scroller {
+                ref {
+                    ctx.scrollerRef = it
+                }
+                attr {
+                    flex(1f)
+                    absolutePositionAllZero()
+                }
+                event {
+                    scroll { params ->
+                        ctx.onScrollerMoved(params)
+                    }
+                    contentSizeChanged { _, height ->
+                        ctx.contentHeight = height
+                        ctx.followBottom()
+                    }
                 }
                 View {
                     attr {
                         padding(16f)
                     }
 
-                    // 使用 vfor 驱动块级增量渲染
-                    vfor({ ctx.blockList }) { block ->
+                    vbind({ ctx.isNightMode() }) {
                         View {
-                            KuiklyStreamingMarkdown(
-                                state = ctx.streamingState,
-                                block = block,
-                                config = MarkdownConfig.Default,
-                            )
+                            vfor({ ctx.blockList }) { block ->
+                                View {
+                                    KuiklyStreamingMarkdown(
+                                        state = ctx.streamingState,
+                                        block = block,
+                                        config = ctx.markdownConfig(),
+                                    )
+                                }
+                            }
                         }
                     }
+                }
+            }
+            vif({ !ctx.autoFollow }) {
+                View {
+                    attr {
+                        absolutePosition(bottom = 16f, right = 16f)
+                        height(32f)
+                        paddingLeft(12f)
+                        paddingRight(12f)
+                        allCenter()
+                        backgroundColor(Color(0xFF1A73E8))
+                        borderRadius(16f)
+                    }
+                    Text {
+                        attr {
+                            text("回到底部")
+                            fontSize(13f)
+                            color(Color.WHITE)
+                        }
+                    }
+                    event {
+                        click {
+                            ctx.autoFollow = true
+                            ctx.followBottom()
+                        }
+                    }
+                }
+            }
+            }
                 }
             }
         }
     }
 
-    /**
-     * 开始模拟 AI 流式输出
-     */
+    private fun onScrollerMoved(params: ScrollParams) {
+        contentHeight = params.contentHeight
+        viewportHeight = params.viewHeight
+        offsetY = params.offsetY
+        val maxOffset = (params.contentHeight - params.viewHeight).coerceAtLeast(0f)
+        val nearBottom = maxOffset - params.offsetY <= FOLLOW_SLOP
+        val next = if (params.isDragging) nearBottom else autoFollow || nearBottom
+        if (next != autoFollow) {
+            autoFollow = next
+        }
+    }
+
+    private fun followBottom() {
+        if (!autoFollow) return
+        val viewport = if (viewportHeight > 1f) {
+            viewportHeight
+        } else {
+            (pagerData.pageViewHeight - pagerData.statusBarHeight - 44.5f).coerceAtLeast(1f)
+        }
+        val target = (contentHeight - viewport).coerceAtLeast(0f)
+        if (target - offsetY <= 1f) return
+        scrollerRef?.view?.setContentOffset(0f, target, false)
+        offsetY = target
+    }
+
     private fun startStreaming() {
-        // 重置状态
         streamingState.reset()
         blockList.clear()
         charIndex = 0
         pendingText = ""
         tickCount = 0
+        autoFollow = true
+        offsetY = 0f
         isStreaming = true
-
-        // 启动模拟输出
+        scrollerRef?.view?.setContentOffset(0f, 0f, false)
         scheduleNextTick()
     }
 
-    /**
-     * 调度下一个 tick（模拟 token 输出）
-     */
     private fun scheduleNextTick() {
-        setTimeout(tickInterval) {
+        setTimeout(TICK_INTERVAL_MS) {
             if (charIndex < STREAMING_SAMPLE.length) {
-                // 模拟输出一批字符
-                val end = minOf(charIndex + charsPerTick, STREAMING_SAMPLE.length)
+                val end = minOf(charIndex + CHARS_PER_TICK, STREAMING_SAMPLE.length)
                 pendingText = STREAMING_SAMPLE.substring(0, end)
                 charIndex = end
                 tickCount++
 
-                // 每隔 flushInterval/tickInterval 次 tick 做一次 flush
-                val flushEveryN = (flushInterval / tickInterval).coerceAtLeast(1)
+                val flushEveryN = (FLUSH_INTERVAL_MS / TICK_INTERVAL_MS).coerceAtLeast(1)
                 if (tickCount % flushEveryN == 0) {
                     flushUpdate()
                 }
-
-                // 继续输出
                 scheduleNextTick()
             } else {
-                // 流式结束，最终 flush
                 flushUpdate(force = true)
                 isStreaming = false
             }
         }
     }
 
-    /**
-     * 将累积的文本解析并更新 blockList
-     */
     private fun flushUpdate(force: Boolean = false) {
         val newBlocks = if (force) {
             streamingState.update(pendingText, force = true)
@@ -208,9 +260,16 @@ internal class StreamingMarkdownDemoPage : BasePager() {
         } ?: return
 
         blockList.diffUpdate(newBlocks) { old, new -> old.id == new.id }
+        followBottom()
     }
 
+
     companion object {
+        private const val FOLLOW_SLOP = 72f
+        private const val CHARS_PER_TICK = 3
+        private const val TICK_INTERVAL_MS = 30
+        private const val FLUSH_INTERVAL_MS = 100
+
         /**
          * 模拟 AI 输出的 Markdown 文本
          */
@@ -265,6 +324,42 @@ Kuikly 使用 **FlexBox** 作为跨平台布局引擎：
 
 > Kuikly 的 FlexBox 实现保证了 Android、iOS、鸿蒙三端的一致性。
 
+## 公式示例
+
+质量与能量的关系是行内公式 ${'$'}E=mc^2${'$'}。块级公式会单独成段：
+
+${'$'}${'$'}x^2+y^2=z^2${'$'}${'$'}
+
+分式、上下标与希腊字母也可以流式到达：${'$'}\alpha = \frac{v}{c}${'$'}。
+
+未闭合片段 ${'$'}E=mc 在后续 chunk 补全前按普通文本展示。
+
+## 混排稳定性
+
+价格是 ${'$'}5 美元，变量 ${'$'}x${'$'} 是未知数 —— 货币符号不能吞掉正文。
+
+${'$'}${'$'}
+\begin{bmatrix}
+1 & 2 \\
+3 & 4
+\end{bmatrix}
+${'$'}${'$'}
+
+紧邻的代码块里也有美元符号：
+
+```swift
+let price = 5        // ${'$'}5
+let latex = "x^2"
+```
+
+| 场景 | 期望 |
+|------|------|
+| 多行 $$ 公式 | 独立居中排版 |
+| 代码块中的 $ | 不解析为公式 |
+| 货币 $5 | 保持原文本 |
+
+> 引用里的行内公式 ${'$'}a^2+b^2=c^2${'$'} 同样正常。
+
 ## 总结
 
 - [x] 跨平台开发
@@ -273,6 +368,7 @@ Kuikly 使用 **FlexBox** 作为跨平台布局引擎：
 
 ---
 
-*以上内容由 AI 流式生成，使用 KuiklyStreamingMarkdown 实时渲染。*"""
+*以上内容由 AI 流式生成，使用 KuiklyStreamingMarkdown 实时渲染。*
+"""
     }
 }

@@ -40,6 +40,20 @@ kotlin {
             }
         }
 
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
+
+        val androidMain by getting {
+            val coreVersion = findProperty("kuiklyCoreVersion")?.toString() ?: Version.getKuiklyVersion()
+            dependencies {
+                compileOnly("com.tencent.kuikly-open:core-render-android:${coreVersion}")
+                api("ru.noties:jlatexmath-android:0.2.0")
+            }
+        }
+
         val iosX64Main by getting
         val iosArm64Main by getting
         val iosSimulatorArm64Main by getting

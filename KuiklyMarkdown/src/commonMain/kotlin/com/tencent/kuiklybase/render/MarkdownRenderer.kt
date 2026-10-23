@@ -25,6 +25,7 @@ import org.intellij.markdown.MarkdownTokenTypes.Companion.EOL
 import org.intellij.markdown.MarkdownTokenTypes.Companion.HORIZONTAL_RULE
 import org.intellij.markdown.MarkdownTokenTypes.Companion.TEXT
 import org.intellij.markdown.ast.ASTNode
+import org.intellij.markdown.flavours.gfm.GFMElementTypes.BLOCK_MATH
 import org.intellij.markdown.flavours.gfm.GFMElementTypes.TABLE
 
 /**
@@ -86,6 +87,7 @@ fun ViewContainer<*, *>.renderMarkdownElement(
         IMAGE -> components.image.invoke(model, this)
         HORIZONTAL_RULE -> components.horizontalRule.invoke(model, this)
         TABLE -> components.table.invoke(model, this)
+        BLOCK_MATH -> components.blockMath.invoke(model, this)
         else -> {
             handled = components.custom?.invoke(node.type, model, this) == true
         }
